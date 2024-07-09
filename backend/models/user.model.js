@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+
     fullName: {
       type: String,
       required: true,
@@ -17,7 +18,7 @@ const userSchema = new mongoose.Schema(
       minLength: 6,
     },
     email: {
-      typ: String,
+      type: String,
       required: true,
       unique: true,
     },
