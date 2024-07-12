@@ -1,3 +1,6 @@
+import bcrypt from "bcryptjs";
+import { v2 as cloudinary } from "cloudinary";
+
 import Notification from "../models/notification.model.js";
 import User from "../models/user.model.js";
 
@@ -77,12 +80,6 @@ export const getSuggestedUsers = async (req, res) => {
       { $sample: { size: 4 } },
     ]);
 
-    // const filteredUsers = users.filter((user) =>
-    //   usersFollowingByMe.following.includes(user._id)
-    // );
-
-    // const suggestedUsers = filteredUsers.slice(0, 4);
-
     users.forEach((user) => (user.password = null));
 
     res.status(200).json(users);
@@ -92,4 +89,82 @@ export const getSuggestedUsers = async (req, res) => {
   }
 };
 
-export const updateUserProfile = async (req, res) => {};
+export const updateUser = async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      username,
+      currentPassword,
+      newPassword,
+      bio,
+      link,
+    } = req.body;
+    let { profileImg, coverImg } = req.body;
+
+    const userId = req.user._id;
+
+    let user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          error:
+            "Please provide valid password, the password need to be at least 6 charcters long",
+        });
+      }
+
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ error: "Current password is incorrect" });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+    }
+
+    if (profileImg) {
+      if (user.profileImg) {
+        // https://res.cloudinaru.com/dyfqon1v6/image/upload/v1712997552/zmxorcxexpdbh8r0bkjb.png
+        // above is an expale of image that we upload to the cloudinary - this is gonna be the url that we could have in a cloudinary - to destroy the image we need the id which is last part of the url:zmxorcxexpdbh8r0bkjb
+        await cloudinary.uploader.destroy(
+          user.profileImg.split("/").pop().split(".")[0]
+        );
+      }
+
+      const uploadedResponse = await cloudinary.uploader.upload(profileImg);
+      profileImg = uploadedResponse.secure_url;
+    }
+
+    if (coverImg) {
+      if (coverImg) {
+        await cloudinary.uploader.destroy(
+          user.coverImg.split("/").pop().split(".")[0]
+        );
+      }
+      const uploadedResponse = await cloudinary.uploader.upload(coverImg);
+      coverImg = uploadedResponse.secure_url;
+    }
+
+    user.fullName = fullName || user.fullName;
+    user.email = email || user.email;
+    user.username = username || user.username;
+    user.bio = bio || user.bio;
+    user.link = link || user.link;
+    user.coverImg = coverImg || user.coverImg;
+    user.profileImg = profileImg || user.profileImg;
+
+    user = await user.save();
+
+    user.password = null;
+
+    return res.status(200).json(user);
+  } catch (error) {
+    console.log("Error in updateUser: ", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
