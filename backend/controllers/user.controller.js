@@ -62,4 +62,34 @@ export const followUnfollowUser = async (req, res) => {
   }
 };
 
+export const getSuggestedUsers = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const usersFollowingByMe = await User.findById(userId).select("following");
+    const followingIds = usersFollowingByMe.following;
+    console.log(usersFollowingByMe);
+    const users = await User.aggregate([
+      {
+        $match: {
+          _id: { $ne: userId, $nin: followingIds },
+        },
+      },
+      { $sample: { size: 4 } },
+    ]);
+
+    // const filteredUsers = users.filter((user) =>
+    //   usersFollowingByMe.following.includes(user._id)
+    // );
+
+    // const suggestedUsers = filteredUsers.slice(0, 4);
+
+    users.forEach((user) => (user.password = null));
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.log("Error in getSuggestedUsers: ", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const updateUserProfile = async (req, res) => {};
